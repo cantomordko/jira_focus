@@ -315,9 +315,11 @@ class LabelEditorWindow(ctk.CTkToplevel):
                 self.parent_gui.selected_labels = current_selection
                 if hasattr(self.parent_gui, 'edit_labels_button') and self.parent_gui.edit_labels_button.winfo_exists():
                     if current_selection:
-                        self.parent_gui.edit_labels_button.configure(text=f"Etykiety ({len(current_selection)})")
+
+                        self.parent_gui.edit_labels_button.configure(text=f"Labels ({len(current_selection)})")
                     else:
-                        self.parent_gui.edit_labels_button.configure(text="Edytuj Etykiety")
+
+                        self.parent_gui.edit_labels_button.configure(text="Labels")
             else:
                 print("[Editor] Zamykanie okna edycji dla istniejącego zadania (bez zapisu do selected_labels).")
         except Exception as e:
@@ -446,7 +448,7 @@ class GUI:
         self.action_buttons_frame.grid_columnconfigure((0, 1), weight=1)
 
         self.edit_labels_button = ctk.CTkButton(
-            self.action_buttons_frame, text="Edytuj Etykiety", font=('Courier New', 12, 'bold'),
+            self.action_buttons_frame, text="Labels", font=('Courier New', 12, 'bold'),
             command=self.open_label_editor_window
         )
         self.edit_labels_button.grid(row=0, column=0, padx=(0, 5), sticky='ew')
@@ -704,7 +706,7 @@ class GUI:
             self.task_entry.delete(0, "end")
         self.selected_labels = set()
         if hasattr(self, 'edit_labels_button') and self.edit_labels_button.winfo_exists():
-            self.edit_labels_button.configure(text="Edytuj Etykiety")
+            self.edit_labels_button.configure(text="Labels")
         self.current_jira_issue_key = None
         if hasattr(self, 'root') and self.root.winfo_exists():
             self._update_action_button_states()
@@ -729,7 +731,7 @@ class GUI:
                 self.current_jira_issue_key = None
                 self.selected_labels = set()
                 if hasattr(self, 'edit_labels_button') and self.edit_labels_button.winfo_exists():
-                    self.edit_labels_button.configure(text="Edytuj Etykiety")
+                    self.edit_labels_button.configure(text="Labels")
                 self.load_categories_from_jira()
             else:
                 print(f"Wybrano nieprawidłowy projekt lub placeholder: {choice}")
@@ -742,7 +744,7 @@ class GUI:
                     self.task_entry.delete(0, "end")
                 self.selected_labels = set()
                 if hasattr(self, 'edit_labels_button') and self.edit_labels_button.winfo_exists():
-                    self.edit_labels_button.configure(text="Edytuj Etykiety")
+                    self.edit_labels_button.configure(text="Labels")
                 self.current_jira_issue_key = None
                 if hasattr(self, 'root') and self.root.winfo_exists():
                     self._update_action_button_states()
@@ -773,6 +775,7 @@ class GUI:
             project_meta = next((p for p in project_meta_list if p.get('key') == self.selected_project_key), None)
             if project_meta:
                 issue_types = project_meta.get('issuetypes', [])
+
                 loaded_categories = sorted(
                     [it['name'] for it in issue_types if not it.get('subtask', False) and 'name' in it])
                 if not loaded_categories:
@@ -840,6 +843,7 @@ class GUI:
 
         summary = task_name
         description_text = f"Task created from JIRA Focus app: {task_name}"
+
         adf_description = {
             "type": "doc", "version": 1,
             "content": [{"type": "paragraph", "content": [{"type": "text", "text": description_text}]}]
@@ -854,6 +858,7 @@ class GUI:
             }
         }
         if labels_list:
+
             valid_labels = [lbl for lbl in labels_list if lbl and not re.search(r"\s", lbl)]
             if valid_labels:
                 issue_data["fields"]["labels"] = valid_labels
@@ -874,6 +879,7 @@ class GUI:
             if result and result.get('error'):
                 error_msg += f"\nBłąd API: {result['error']}"
             elif result and 'data' in result:
+
                 api_errors = result['data'].get('errorMessages', [])
                 api_details = result['data'].get('errors', {})
                 if api_errors: error_msg += "\n" + "\n".join(api_errors)
@@ -974,6 +980,7 @@ class GUI:
         target_status_name_lower = target_status_name.lower()
         found_transition_name = "N/A"
         for transition in transitions:
+
             if transition.get('to', {}).get('name', '').lower() == target_status_name_lower:
                 target_transition_id = transition.get('id')
                 found_transition_name = transition.get('name', 'N/A')
@@ -1017,6 +1024,7 @@ class GUI:
                 error_msg += f"\nNieoczekiwana odpowiedź serwera (kod {result.get('status_code', 'N/A')}). Sprawdź logi Jira."
             if result and result.get(
                 'raw_response'): error_msg += f"\nOdpowiedź: {result.get('raw_response', '')[:200]}..."
+
             if hasattr(self, 'root') and self.root.winfo_exists():
                 messagebox.showerror("Błąd Przejścia", error_msg, parent=self.root)
             return False
@@ -1049,6 +1057,7 @@ class GUI:
         if project_selected and not self.timer_running:
             label_edit_state = 'normal'
             history_button_state = 'normal'
+
         if can_interact_with_task and self.my_account_id:
             assign_me_state = 'normal'
         if can_start_timer:
@@ -1149,6 +1158,7 @@ class GUI:
         if not self.current_task_name:
             messagebox.showerror("Błąd", "Nazwa zadania nie może być pusta.", parent=self.root);
             return
+
         if selected_project_display_name not in self.project_keys or self.project_keys[
             selected_project_display_name] != self.selected_project_key:
             messagebox.showerror("Błąd",
@@ -1160,6 +1170,7 @@ class GUI:
         issue_key_to_use = self.current_jira_issue_key
         if not issue_key_to_use:
             print("Nie wybrano istniejącego zadania, próba utworzenia nowego...")
+
             final_labels_list = sorted(list(self.selected_labels))
             print(f"Używane etykiety dla nowego zadania: {final_labels_list}")
 
@@ -1168,9 +1179,10 @@ class GUI:
                 issue_key_to_use = new_issue_key
                 self.current_jira_issue_key = new_issue_key
                 print(f"Ustawiono klucz bieżącego zadania na nowo utworzone: {self.current_jira_issue_key}")
+
                 self.selected_labels = set()
                 if hasattr(self, 'edit_labels_button') and self.edit_labels_button.winfo_exists():
-                    self.edit_labels_button.configure(text="Edytuj Etykiety")
+                    self.edit_labels_button.configure(text="Labels")
             else:
                 print("Timer nie zostanie uruchomiony z powodu błędu tworzenia zadania.")
                 return
@@ -1192,6 +1204,7 @@ class GUI:
             self._update_action_button_states()
 
         else:
+
             print("Błąd krytyczny: Brak klucza zadania Jira po próbie utworzenia/wybrania.")
             if hasattr(self, 'root') and self.root.winfo_exists():
                 messagebox.showerror("Błąd Wewnętrzny",
@@ -1225,6 +1238,7 @@ class GUI:
             self.timer_label.configure(text=f"Ostatni: {last_logged_time_str} ({elapsed_seconds}s)")
 
         if hasattr(self, 'bstart') and self.bstart.winfo_exists(): self.bstart.configure(text='START')
+
         if hasattr(self, 'project_combobox') and self.project_combobox.winfo_exists(): self.project_combobox.configure(
             state='normal')
         if hasattr(self,
@@ -1240,11 +1254,13 @@ class GUI:
         if self.timer_running and hasattr(self, 'root') and self.root.winfo_exists():
             if self.start_time > 0:
                 current_elapsed = time.time() - self.start_time
+
                 h, rem = divmod(int(current_elapsed), 3600)
                 m, s = divmod(rem, 60)
                 time_string = f"Czas: {h:02d}:{m:02d}:{s:02d}"
                 if hasattr(self, 'timer_label') and self.timer_label.winfo_exists():
                     self.timer_label.configure(text=time_string)
+
                 if self.timer_running:
                     self.root.after(1000, self.update_timer)
             else:
@@ -1292,13 +1308,16 @@ class GUI:
         self.root.update_idletasks()
 
         print(f"Pobieranie tasków dla projektu {self.selected_project_key}...")
+
         jql = f'project = "{self.selected_project_key}" ORDER BY updated DESC'
+
         fields = "summary,status,issuetype,worklog,labels,assignee"
         max_results = 50
         endpoint = f"search?jql={requests.utils.quote(jql)}&fields={fields}&maxResults={max_results}"
         result = self._make_jira_request("GET", endpoint)
 
         if loading_label.winfo_exists(): loading_label.destroy()
+
         for widget in scrollable_frame.winfo_children():
             if widget != scrollable_frame._scrollbar:
                 widget.destroy()
@@ -1314,12 +1333,14 @@ class GUI:
             else:
                 for issue in issues:
                     try:
+
                         issue_key = issue.get('key', 'NO-KEY')
                         fields_data = issue.get('fields', {})
                         summary = fields_data.get('summary', 'Brak podsumowania')
                         status_name = fields_data.get('status', {}).get('name', 'Nieznany St.')
                         issue_type_name = fields_data.get('issuetype', {}).get('name', 'Nieznany Typ')
                         labels = fields_data.get('labels', [])
+
                         total_time_seconds = sum(
                             wl.get('timeSpentSeconds', 0) for wl in fields_data.get('worklog', {}).get('worklogs', []))
                         time_str = self._format_seconds_to_jira_duration(
@@ -1339,11 +1360,13 @@ class GUI:
                             font=('Courier New', 12),
                             anchor='w',
                             fg_color="#444444", hover_color="#555555",
+
                             command=lambda s=summary, k=issue_key, t=issue_type_name, l=labels, a=assignee_data,
                                            win=task_window: self.select_task(s, k, t, l, a, win)
                         )
                         task_button.pack(fill='x', padx=5)
                     except Exception as issue_e:
+
                         print(f"Błąd przetwarzania taska {issue.get('key', 'N/A')}: {issue_e}")
                         ctk.CTkLabel(scrollable_frame, text=f"Błąd wczytywania taska {issue.get('key', 'N/A')}",
                                      font=('Courier New', 10), text_color="orange").pack(pady=2)
@@ -1371,6 +1394,7 @@ class GUI:
         print("Odświeżanie listy tasków...")
         if window and window.winfo_exists():
             window.destroy()
+
         if hasattr(self, 'root') and self.root.winfo_exists():
             self.root.after(150, self.show_task_list)
 
@@ -1381,6 +1405,7 @@ class GUI:
             return
 
         if self.timer_running:
+
             messagebox.showwarning("Timer Aktywny", "Nie można wybrać nowego zadania, gdy timer jest uruchomiony.",
                                    parent=window)
             if window and window.winfo_exists(): window.focus_force()
@@ -1395,9 +1420,11 @@ class GUI:
             self.task_entry.insert(0, summary)
 
         if hasattr(self, 'category_combobox') and self.category_combobox.winfo_exists():
+
             if issue_type_name and issue_type_name in self.categories:
                 self.category_combobox.set(issue_type_name)
             else:
+
                 print(
                     f"Ostrzeżenie: Typ zadania '{issue_type_name}' nie znaleziony w załadowanych typach dla projektu {self.selected_project_key}. Ustawianie domyślnego.")
                 default_type = self.categories[0] if self.categories else "Wybierz typ"
@@ -1405,7 +1432,7 @@ class GUI:
 
         self.selected_labels = set()
         if hasattr(self, 'edit_labels_button') and self.edit_labels_button.winfo_exists():
-            self.edit_labels_button.configure(text="Edytuj Etykiety")
+            self.edit_labels_button.configure(text="Labels")
         print("   Wyczyszczono stan etykiet dla tworzenia nowych zadań.")
 
         self.current_jira_issue_key = issue_key
@@ -1417,12 +1444,14 @@ class GUI:
 
 
 if __name__ == "__main__":
+
     try:
         import customtkinter
         import requests
     except ImportError as e:
         print(f"BŁĄD: Brak wymaganej biblioteki: {e.name}")
         print("Uruchom: pip install customtkinter requests")
+
         try:
             import tkinter as tk
             from tkinter import messagebox
@@ -1443,6 +1472,7 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"Wystąpił krytyczny błąd podczas inicjalizacji aplikacji:")
         traceback.print_exc()
+
         try:
             import tkinter as tk
             from tkinter import messagebox
@@ -1455,5 +1485,3 @@ if __name__ == "__main__":
         except Exception as msg_e:
             print(f"Nie można wyświetlić okna błędu inicjalizacji: {msg_e}")
         sys.exit(1)
-
-    print("Aplikacja JIRA Focus zakończyła działanie.")
