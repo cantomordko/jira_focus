@@ -5,9 +5,9 @@ import sys
 import time
 import traceback
 from collections import Counter
-
+from tkinter import messagebox
 import customtkinter as ctk
-
+import requests
 
 class LabelEditorWindow(ctk.CTkToplevel):
     def __init__(self, parent_gui):
