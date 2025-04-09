@@ -1472,7 +1472,7 @@ class GUI:
         if hasattr(self, 'root'): self.root.update_idletasks()
 
         print(f"Fetching tasks for project {self.selected_project_key}...")
-        jql = f'project = "{self.selected_project_key}" ORDER BY updated DESC'
+        jql = f'project = "{self.selected_project_key}" AND status NOT IN ("Done", "Resolved", "Canceled", "Closed") ORDER BY updated DESC'
         fields = "summary,status,issuetype,worklog,labels,assignee"
         max_res = 50
         endpoint = f"search?jql={requests.utils.quote(jql)}&fields={fields}&maxResults={max_res}"

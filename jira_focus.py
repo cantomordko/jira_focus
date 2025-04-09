@@ -1437,14 +1437,14 @@ class GUI:
         task_window = ctk.CTkToplevel(self.root)
         task_window.configure(fg_color=BACKGROUND_COLOR)
         task_window.title(f"TASK_LIST::{self.selected_project_key}")
-        task_window.geometry("800x550")
+        task_window.geometry("900x550")
         task_window.transient(self.root)
         task_window.grab_set()
         task_window.attributes('-alpha', 0.97)
         try:
             main_x, main_y = self.root.winfo_x(), self.root.winfo_y()
             main_w, main_h = self.root.winfo_width(), self.root.winfo_height()
-            win_w, win_h = 800, 550
+            win_w, win_h = 900, 550
             task_window.geometry(
                 f"{win_w}x{win_h}+{main_x + (main_w // 2) - (win_w // 2)}+{main_y + (main_h // 2) - (win_h // 2)}")
         except Exception as e:
@@ -1464,7 +1464,7 @@ class GUI:
         if hasattr(self, 'root'): self.root.update_idletasks()
 
         print(f"Fetching tasks for project {self.selected_project_key}...")
-        jql = f'project = "{self.selected_project_key}" ORDER BY updated DESC'
+        jql = f'project = "{self.selected_project_key}" AND status NOT IN ("Done", "Resolved", "Canceled", "Closed") ORDER BY updated DESC'
         fields = "summary,status,issuetype,worklog,labels,assignee"
         max_res = 50
         endpoint = f"search?jql={requests.utils.quote(jql)}&fields={fields}&maxResults={max_res}"
