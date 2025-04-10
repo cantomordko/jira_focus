@@ -1437,25 +1437,33 @@ class GUI:
         task_window = ctk.CTkToplevel(self.root)
         task_window.configure(fg_color=BACKGROUND_COLOR)
         task_window.title(f"TASK_LIST::{self.selected_project_key}")
-        task_window.geometry("900x550")
+        task_window.geometry("800x550")
         task_window.transient(self.root)
-        task_window.grab_set()
         task_window.attributes('-alpha', 0.97)
         try:
             main_x, main_y = self.root.winfo_x(), self.root.winfo_y()
             main_w, main_h = self.root.winfo_width(), self.root.winfo_height()
-            win_w, win_h = 900, 550
+            win_w, win_h = 800, 550
             task_window.geometry(
                 f"{win_w}x{win_h}+{main_x + (main_w // 2) - (win_w // 2)}+{main_y + (main_h // 2) - (win_h // 2)}")
         except Exception as e:
             print(f"Could not center task list: {e}")
 
+        # Schedule the grab_set to happen after the window is visible
+        def set_grab():
+            if task_window.winfo_exists():
+                task_window.grab_set()
+
+        task_window.after(100, set_grab)
+
+        # Rest of your existing show_task_list code...
         scroll_frame = ctk.CTkScrollableFrame(
             task_window, label_text=f"RECENT TASKS IN PROJECT: {self.selected_project_key}",
             label_font=FONT_MONO_BOLD, label_text_color=TERMINAL_GREEN,
             fg_color=WIDGET_BACKGROUND, corner_radius=0, border_width=1, border_color=BORDER_COLOR,
             scrollbar_button_color=TERMINAL_GREEN, scrollbar_button_hover_color=TERMINAL_GREEN_BRIGHT
         )
+        # ... rest of the method remains the same ...
         scroll_frame.pack(fill='both', padx=10, pady=(5, 0), expand=True)
 
         loading = ctk.CTkLabel(scroll_frame, text="fetching tasks...", font=FONT_MONO_NORMAL,
