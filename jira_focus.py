@@ -4,30 +4,31 @@ import re
 import sys
 import time
 import traceback
+import weakref
 from collections import Counter
-from tkinter import messagebox
+from functools import lru_cache
+
 import customtkinter as ctk
-import requests
 
-TERMINAL_GREEN = "#32CD32"
-TERMINAL_GREEN_BRIGHT = "#7FFF00"
-BACKGROUND_COLOR = "#111111"
-WIDGET_BACKGROUND = "#222222"
-BORDER_COLOR = TERMINAL_GREEN
-HOVER_COLOR_BTN = "#333333"
-TEXT_COLOR_NORMAL = TERMINAL_GREEN
-TEXT_COLOR_DIM = "#777777"
-ERROR_RED = "#CC0000"
-STATUS_BLUE = "#0088CC"
-STATUS_ORANGE = "#FFA500"
-STATUS_GREEN = "#00AA00"
-LABEL_NEW_FG = "#90EE90"
+TERMINAL_GREEN = "#0A84FF"
+TERMINAL_GREEN_BRIGHT = "#5E9DFF"
+BACKGROUND_COLOR = "#1E1E1E"
+WIDGET_BACKGROUND = "#2C2C2C"
+BORDER_COLOR = "#404040"
+HOVER_COLOR_BTN = "#3A3A3A"
+TEXT_COLOR_NORMAL = "#FFFFFF"
+TEXT_COLOR_DIM = "#A0A0A0"
+ERROR_RED = "#FF453A"
+STATUS_BLUE = "#0A84FF"
+STATUS_ORANGE = "#FF9F0A"
+STATUS_GREEN = "#30D158"
+LABEL_NEW_FG = "#64D2FF"
 
-FONT_FAMILY_MONO = "Courier New"
+FONT_FAMILY_MONO = "SF Mono"
 FONT_MONO_NORMAL = (FONT_FAMILY_MONO, 13)
 FONT_MONO_BOLD = (FONT_FAMILY_MONO, 13, "bold")
-FONT_MONO_LARGE = (FONT_FAMILY_MONO, 17)
-FONT_MONO_XLARGE = (FONT_FAMILY_MONO, 22, "bold")
+FONT_MONO_LARGE = (FONT_FAMILY_MONO, 15)
+FONT_MONO_XLARGE = (FONT_FAMILY_MONO, 20, "bold")
 FONT_MONO_SMALL = (FONT_FAMILY_MONO, 11)
 
 
@@ -41,6 +42,14 @@ class LabelEditorWindow(ctk.CTkToplevel):
         self.attributes('-alpha', 0.95)
 
         self.configure(fg_color=BACKGROUND_COLOR)
+        self._set_appearance_mode("Dark")
+
+        self.overrideredirect(True)
+
+        self.create_macos_title_bar()
+
+        self._x = None
+        self._y = None
 
         self.initial_labels_for_existing_task = set()
         self.current_selection_vars = {}
@@ -82,8 +91,8 @@ class LabelEditorWindow(ctk.CTkToplevel):
             self, height=250,
             fg_color=WIDGET_BACKGROUND,
             label_text_color=TEXT_COLOR_NORMAL, label_font=FONT_MONO_SMALL,
-            scrollbar_button_color=TERMINAL_GREEN, scrollbar_button_hover_color=TERMINAL_GREEN_BRIGHT,
-            corner_radius=0, border_width=1, border_color=BORDER_COLOR
+            scrollbar_button_color=BORDER_COLOR, scrollbar_button_hover_color=TERMINAL_GREEN_BRIGHT,
+            corner_radius=10, border_width=0
         )
         self.labels_scroll_frame.pack(fill='x', padx=10, pady=(0, 5))
         self.labels_scroll_frame.grid_columnconfigure(0, weight=1)
@@ -93,7 +102,7 @@ class LabelEditorWindow(ctk.CTkToplevel):
 
         self.new_label_entry = ctk.CTkEntry(
             self.add_label_frame,
-            placeholder_text="add new label >", font=FONT_MONO_NORMAL, corner_radius=0,
+            placeholder_text="add new label >", font=FONT_MONO_NORMAL, corner_radius=8,
             fg_color=WIDGET_BACKGROUND, text_color=TEXT_COLOR_NORMAL,
             placeholder_text_color=TEXT_COLOR_DIM, border_width=1, border_color=BORDER_COLOR
         )
@@ -103,8 +112,8 @@ class LabelEditorWindow(ctk.CTkToplevel):
         self.add_label_button = ctk.CTkButton(
             self.add_label_frame, text="ADD", font=FONT_MONO_BOLD,
             width=60, command=self._add_new_label_from_entry,
-            corner_radius=0, fg_color=TERMINAL_GREEN, text_color=BACKGROUND_COLOR,
-            hover_color=TERMINAL_GREEN_BRIGHT
+            corner_radius=10, border_width=0, fg_color=STATUS_BLUE, text_color=BACKGROUND_COLOR,
+            hover_color="#3A9BFF"
         )
         self.add_label_button.pack(side='left')
 
@@ -116,16 +125,16 @@ class LabelEditorWindow(ctk.CTkToplevel):
             self.update_button = ctk.CTkButton(
                 self.action_button_frame, text="UPDATE [JIRA]",
                 font=FONT_MONO_BOLD, command=self._update_jira_labels,
-                fg_color=STATUS_GREEN, text_color=BACKGROUND_COLOR, hover_color=TERMINAL_GREEN_BRIGHT,
-                corner_radius=0
+                fg_color=STATUS_GREEN, text_color=BACKGROUND_COLOR, hover_color="#3A9BFF",
+                corner_radius=10, border_width=0
             )
             self.update_button.grid(row=0, column=0, padx=(0, 5), sticky='ew')
         else:
             self.save_button = ctk.CTkButton(
                 self.action_button_frame, text="SAVE [NEW TASK]",
                 font=FONT_MONO_BOLD, command=self._save_labels_for_new_task_and_close,
-                fg_color=STATUS_GREEN, text_color=BACKGROUND_COLOR, hover_color=TERMINAL_GREEN_BRIGHT,
-                corner_radius=0
+                fg_color=STATUS_GREEN, text_color=BACKGROUND_COLOR, hover_color="#3A9BFF",
+                corner_radius=10, border_width=0
             )
             self.save_button.grid(row=0, column=0, padx=(0, 5), sticky='ew')
 
@@ -133,7 +142,7 @@ class LabelEditorWindow(ctk.CTkToplevel):
             self.action_button_frame, text="CANCEL", font=FONT_MONO_BOLD,
             command=self.destroy,
             fg_color=TEXT_COLOR_DIM, text_color=BACKGROUND_COLOR, hover_color=HOVER_COLOR_BTN,
-            corner_radius=0
+            corner_radius=10, border_width=0
         )
         self.cancel_button.grid(row=0, column=1, padx=(5, 0), sticky='ew')
 
@@ -409,6 +418,57 @@ class LabelEditorWindow(ctk.CTkToplevel):
         print("[Editor] Label editor window closed by user ('X' button).")
         self._save_labels_for_new_task_and_close()
 
+    def create_macos_title_bar(self):
+        title_bar = ctk.CTkFrame(self, height=28, fg_color="#2C2C2C", corner_radius=10)
+        title_bar.pack(fill='x', padx=5, pady=(5, 0))
+
+        btn_frame = ctk.CTkFrame(title_bar, fg_color="transparent")
+        btn_frame.pack(side='left', padx=5)
+
+        close_btn = ctk.CTkButton(btn_frame, text="", width=12, height=12,
+                                  fg_color="#FF5F56", hover_color="#FF5F56",
+                                  corner_radius=6, command=self.destroy)
+        close_btn.pack(side='left', padx=(0, 5))
+
+        minimize_btn = ctk.CTkButton(btn_frame, text="", width=12, height=12,
+                                     fg_color="#FFBD2E", hover_color="#FFBD2E",
+                                     corner_radius=6, command=self.iconify)
+        minimize_btn.pack(side='left', padx=(0, 5))
+
+        maximize_btn = ctk.CTkButton(btn_frame, text="", width=12, height=12,
+                                     fg_color="#27C93F", hover_color="#27C93F",
+                                     corner_radius=6, command=self.toggle_maximize)
+        maximize_btn.pack(side='left')
+
+        title_label = ctk.CTkLabel(title_bar, text="LABELS EDITOR",
+                                   font=FONT_MONO_SMALL, text_color=TEXT_COLOR_NORMAL)
+        title_label.pack(side='left', padx=10)
+
+        title_bar.bind("<ButtonPress-1>", self.start_move)
+        title_bar.bind("<ButtonRelease-1>", self.stop_move)
+        title_bar.bind("<B1-Motion>", self.on_motion)
+
+    def start_move(self, event):
+        self._x = event.x
+        self._y = event.y
+
+    def stop_move(self, event):
+        self._x = None
+        self._y = None
+
+    def on_motion(self, event):
+        deltax = event.x - self._x
+        deltay = event.y - self._y
+        x = self.winfo_x() + deltax
+        y = self.winfo_y() + deltay
+        self.geometry(f"+{x}+{y}")
+
+    def toggle_maximize(self):
+        if self.state() == 'zoomed':
+            self.state('normal')
+        else:
+            self.state('zoomed')
+
 
 class CreateTaskDialog(ctk.CTkToplevel):
     def __init__(self, parent_gui, parent_window, project_key, issue_types):
@@ -538,6 +598,7 @@ class GUI:
         self.categories = []
         self.my_account_id = None
         self.selected_project_key = None
+        self._root_ref = None
         self.current_task_name = ""
         self.current_jira_issue_key = None
         self.start_time = 0
@@ -592,27 +653,39 @@ class GUI:
 
         ctk.set_appearance_mode("dark")
         self.root = ctk.CTk()
+        self._root_ref = weakref.ref(self.root)
         self.root.configure(fg_color=BACKGROUND_COLOR)
-        self.root.geometry("450x500")
-        self.root.title("JIRA::FOCUS_v1.0")
-        self.root.resizable(False, False)
-        self.root.attributes('-alpha', 0.97)
+        self.root.geometry("500x500")
+        self.root.title("JIRA Focus")
+        self.root.resizable(True, True)
+        self.root.attributes('-alpha', 0.98)
+
+        self._x = None
+        self._y = None
+
+        self.root.overrideredirect(True)
+
+        self.create_macos_title_bar()
+
+        self.content_frame = ctk.CTkFrame(self.root, fg_color="transparent")
+        self.content_frame.pack(fill='both', expand=True, padx=10, pady=10)
 
         self.root.bind("<Control-q>", self.minimize_window)
         self.root.bind("<Control-Shift-q>", self.restore_window)
 
-        self.label = ctk.CTkLabel(self.root, text="[[ JIRA FOCUS ]]", font=FONT_MONO_XLARGE, text_color=TERMINAL_GREEN)
+        self.label = ctk.CTkLabel(self.content_frame, text="JIRA FOCUS", font=FONT_MONO_XLARGE,
+                                  text_color=TERMINAL_GREEN)
         self.label.pack(padx=10, pady=(10, 15))
 
-        self.project_label = ctk.CTkLabel(self.root, text="PROJECT:", font=FONT_MONO_LARGE,
+        self.project_label = ctk.CTkLabel(self.content_frame, text="PROJECT:", font=FONT_MONO_LARGE,
                                           text_color=TEXT_COLOR_NORMAL)
         self.project_label.pack(anchor='w', padx=15)
-        self.project_frame = ctk.CTkFrame(self.root, fg_color="transparent")
+        self.project_frame = ctk.CTkFrame(self.content_frame, fg_color="transparent")
         self.project_frame.pack(fill='x', padx=10, pady=(0, 5))
         self.project_combobox = ctk.CTkComboBox(
             self.project_frame, values=self.projects, font=FONT_MONO_NORMAL,
             dropdown_font=FONT_MONO_NORMAL, command=self.on_project_select,
-            corner_radius=0, fg_color=WIDGET_BACKGROUND, text_color=TEXT_COLOR_NORMAL,
+            corner_radius=8, fg_color=WIDGET_BACKGROUND, text_color=TEXT_COLOR_NORMAL,
             border_width=1, border_color=BORDER_COLOR,
             button_color=TERMINAL_GREEN, button_hover_color=TERMINAL_GREEN_BRIGHT,
             dropdown_fg_color=WIDGET_BACKGROUND, dropdown_hover_color=HOVER_COLOR_BTN,
@@ -621,13 +694,7 @@ class GUI:
         self.project_combobox.pack(fill='x', expand=True)
         self.project_combobox.set("select project >")
 
-        self.category_label = ctk.CTkLabel(self.root, text="ISSUE TYPE:", font=FONT_MONO_LARGE,
-                                           text_color=TEXT_COLOR_NORMAL)
-        self.category_display_label = ctk.CTkLabel(self.root, text="select issue type >", font=FONT_MONO_NORMAL,
-                                                   text_color=TEXT_COLOR_NORMAL)
-
-
-        self.issue_type_frame = ctk.CTkFrame(self.root, fg_color="transparent")
+        self.issue_type_frame = ctk.CTkFrame(self.content_frame, fg_color="transparent")
         self.issue_type_frame.pack(fill='x', padx=10, pady=(5, 0))
 
         self.category_label = ctk.CTkLabel(self.issue_type_frame, text="ISSUE TYPE:", font=FONT_MONO_LARGE,
@@ -640,14 +707,12 @@ class GUI:
         self.category_display_label.grid(row=0, column=1, padx=(0, 5),
                                          sticky='w')
 
-
-
-        self.task_label = ctk.CTkLabel(self.root, text="TASK SUMMARY:", font=FONT_MONO_LARGE,
+        self.task_label = ctk.CTkLabel(self.content_frame, text="TASK SUMMARY:", font=FONT_MONO_LARGE,
                                        text_color=TEXT_COLOR_NORMAL)
         self.task_label.pack(anchor='w', padx=15, pady=(5, 0))
 
         self.task_entry = ctk.CTkEntry(
-            self.root, font=FONT_MONO_NORMAL, corner_radius=0,
+            self.content_frame, font=FONT_MONO_NORMAL, corner_radius=8,
             fg_color=WIDGET_BACKGROUND, text_color=TEXT_COLOR_NORMAL,
             placeholder_text_color=TEXT_COLOR_DIM, border_width=1, border_color=BORDER_COLOR,
             placeholder_text="enter task summary here >",
@@ -655,37 +720,37 @@ class GUI:
         )
         self.task_entry.pack(fill='x', padx=10, pady=(0, 10))
 
-        self.action_buttons_frame = ctk.CTkFrame(self.root, fg_color="transparent")
+        self.action_buttons_frame = ctk.CTkFrame(self.content_frame, fg_color="transparent")
         self.action_buttons_frame.pack(fill='x', padx=10, pady=5)
         self.action_buttons_frame.grid_columnconfigure((0, 1), weight=1)
 
         self.edit_labels_button = ctk.CTkButton(
             self.action_buttons_frame, text="LABELS [0]", font=FONT_MONO_BOLD,
             command=self.open_label_editor_window,
-            corner_radius=0, fg_color=WIDGET_BACKGROUND, text_color=TEXT_COLOR_NORMAL,
-            border_color=BORDER_COLOR, border_width=1, hover_color=HOVER_COLOR_BTN
+            corner_radius=10, fg_color=WIDGET_BACKGROUND, text_color=TEXT_COLOR_NORMAL,
+            border_width=0, hover_color=HOVER_COLOR_BTN
         )
         self.edit_labels_button.grid(row=0, column=0, padx=(0, 5), sticky='ew')
 
         self.assign_me_button = ctk.CTkButton(
             self.action_buttons_frame, text="ASSIGN_TO_ME", font=FONT_MONO_BOLD,
             command=self.assign_to_me, state='disabled',
-            corner_radius=0, fg_color=STATUS_BLUE, text_color=BACKGROUND_COLOR,
-            hover_color="#00AADD"
+            corner_radius=10, border_width=0, fg_color=STATUS_BLUE, text_color=BACKGROUND_COLOR,
+            hover_color="#3A9BFF"
         )
         self.assign_me_button.grid(row=0, column=1, padx=(5, 0), sticky='ew')
 
-        self.list_button_frame = ctk.CTkFrame(self.root, fg_color="transparent")
+        self.list_button_frame = ctk.CTkFrame(self.content_frame, fg_color="transparent")
         self.list_button_frame.pack(fill='x', padx=10, pady=5)
         self.history_button = ctk.CTkButton(
             self.list_button_frame, text="LIST TASKS IN PROJECT", font=FONT_MONO_BOLD,
-            command=self.show_task_list, corner_radius=0, state='disabled',
+            command=self.show_task_list, corner_radius=10, state='disabled',
             fg_color=WIDGET_BACKGROUND, text_color=TEXT_COLOR_NORMAL,
-            border_color=BORDER_COLOR, border_width=1, hover_color=HOVER_COLOR_BTN
+            border_width=0, hover_color=HOVER_COLOR_BTN
         )
         self.history_button.pack(fill='x', expand=True)
 
-        self.timer_buttonframe = ctk.CTkFrame(self.root, fg_color="transparent")
+        self.timer_buttonframe = ctk.CTkFrame(self.content_frame, fg_color="transparent")
         self.timer_buttonframe.pack(fill='x', padx=10, pady=5)
         self.timer_buttonframe.grid_columnconfigure((0, 1), weight=1)
 
@@ -693,7 +758,7 @@ class GUI:
             self.timer_buttonframe, text='START_TIMER', font=FONT_MONO_BOLD,
             command=self.start_timer, state='disabled',
             fg_color=STATUS_GREEN, text_color=BACKGROUND_COLOR,
-            hover_color=TERMINAL_GREEN_BRIGHT, corner_radius=0
+            hover_color="#3A9BFF", corner_radius=10, border_width=0
         )
         self.bstart.grid(row=0, column=0, padx=(0, 5), sticky='ew')
 
@@ -701,18 +766,18 @@ class GUI:
             self.timer_buttonframe, text='STOP_TIMER', font=FONT_MONO_BOLD,
             command=self.stop_timer, state='disabled',
             fg_color=ERROR_RED, text_color=BACKGROUND_COLOR,
-            hover_color="#FF4444", corner_radius=0
+            hover_color="#FF4444", corner_radius=10, border_width=0
         )
         self.bstop.grid(row=0, column=1, padx=(5, 0), sticky='ew')
 
-        self.timer_label = ctk.CTkLabel(self.root, text="TIME: 00:00:00", font=FONT_MONO_LARGE,
+        self.timer_label = ctk.CTkLabel(self.content_frame, text="TIME: 00:00:00", font=FONT_MONO_LARGE,
                                         text_color=TERMINAL_GREEN)
         self.timer_label.pack(pady=5)
 
-        self.status_label = ctk.CTkLabel(self.root, text="CHANGE STATUS:", font=FONT_MONO_LARGE,
+        self.status_label = ctk.CTkLabel(self.content_frame, text="CHANGE STATUS:", font=FONT_MONO_LARGE,
                                          text_color=TEXT_COLOR_NORMAL)
         self.status_label.pack(pady=(10, 0))
-        self.status_buttonframe = ctk.CTkFrame(self.root, fg_color="transparent")
+        self.status_buttonframe = ctk.CTkFrame(self.content_frame, fg_color="transparent")
         self.status_buttonframe.pack(fill='x', padx=10, pady=5)
         self.status_buttonframe.grid_columnconfigure((0, 1, 2), weight=1)
 
@@ -720,7 +785,7 @@ class GUI:
             self.status_buttonframe, text='[ ] TO DO', font=FONT_MONO_BOLD,
             command=lambda: self.change_status_to("To Do"), state='disabled',
             fg_color=STATUS_BLUE, text_color=BACKGROUND_COLOR,
-            hover_color="#00AADD", corner_radius=0
+            hover_color="#3A9BFF", corner_radius=10, border_width=0
         )
         self.bstatus_todo.grid(row=0, column=0, padx=(0, 5), sticky='ew')
 
@@ -728,7 +793,7 @@ class GUI:
             self.status_buttonframe, text='[>] IN PROGRESS', font=FONT_MONO_BOLD,
             command=lambda: self.change_status_to("In Progress"), state='disabled',
             fg_color=STATUS_ORANGE, text_color=BACKGROUND_COLOR,
-            hover_color="#FFCC33", corner_radius=0
+            hover_color="#FFCC33", corner_radius=10, border_width=0
         )
         self.bstatus_inprogress.grid(row=0, column=1, padx=(5, 5), sticky='ew')
 
@@ -736,7 +801,7 @@ class GUI:
             self.status_buttonframe, text='[X] DONE', font=FONT_MONO_BOLD,
             command=lambda: self.change_status_to("Done"), state='disabled',
             fg_color=STATUS_GREEN, text_color=BACKGROUND_COLOR,
-            hover_color=TERMINAL_GREEN_BRIGHT, corner_radius=0
+            hover_color="#3A9BFF", corner_radius=10, border_width=0
         )
         self.bstatus_done.grid(row=0, column=2, padx=(5, 0), sticky='ew')
 
@@ -745,7 +810,19 @@ class GUI:
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
         self.root.mainloop()
 
+    @lru_cache(maxsize=32)
+    def _cached_get_request(self, endpoint):
+        """Cached wrapper for GET requests to improve performance"""
+        return self._make_jira_request_internal("GET", endpoint)
+
     def _make_jira_request(self, method, endpoint, **kwargs):
+        """Make a request to the JIRA API with caching for GET requests"""
+        if method == "GET" and not kwargs:
+            return self._cached_get_request(endpoint)
+        return self._make_jira_request_internal(method, endpoint, **kwargs)
+
+    def _make_jira_request_internal(self, method, endpoint, **kwargs):
+        """Internal implementation of JIRA API request handling"""
         if not self.jira_server:
             print("!! ERROR: Jira server address not configured.")
             return {'success': False, 'error': 'Jira server address not configured.', 'status_code': None}
@@ -755,11 +832,7 @@ class GUI:
 
         log_data_summary = ""
         if 'data' in kwargs and method in ["POST", "PUT"]:
-            try:
-                json.loads(kwargs['data'])
-                log_data_summary = " with JSON data"
-            except (json.JSONDecodeError, TypeError):
-                log_data_summary = " with data"
+            log_data_summary = " with data"
         print(f"--> JIRA_API: {method} {log_url}{log_data_summary}")
 
         try:
@@ -779,57 +852,83 @@ class GUI:
             else:
                 try:
                     data = response.json()
-                    print(f"<-- JIRA_API: {response.status_code} OK (JSON)")
+                    print(f"<-- JIRA_API: {response.status_code} OK")
                     return {'success': True, 'status_code': response.status_code, 'data': data}
                 except json.JSONDecodeError:
-                    print(f"<-- JIRA_API: {response.status_code} OK (Non-JSON): {response.text[:100]}...")
+                    print(f"<-- JIRA_API: {response.status_code} OK (Non-JSON)")
                     is_success = 200 <= response.status_code < 300
                     return {'success': is_success, 'status_code': response.status_code, 'raw_response': response.text}
 
         except requests.exceptions.HTTPError as http_err:
-            status_code = http_err.response.status_code if http_err.response is not None else 'N/A'
-            response_text = http_err.response.text if http_err.response is not None else '<no response body>'
-            error_message = f"!! HTTP Error {status_code} for {method} {log_url}: {http_err}"
-            jira_error_details = ""
-            try:
-                if http_err.response is not None:
-                    error_json = http_err.response.json()
-                    jira_error_messages = error_json.get('errorMessages', [])
-                    jira_errors = error_json.get('errors', {})
-                    if jira_error_messages: jira_error_details += f"\nJira Messages: {jira_error_messages}"
-                    if jira_errors: jira_error_details += f"\nJira Details: {jira_errors}"
-                    error_message += jira_error_details
-            except (json.JSONDecodeError, AttributeError):
-                pass
-            print(f"[API ERROR] {error_message}\nResponse Body: {response_text[:500]}...")
-            return {'success': False, 'error': error_message, 'status_code': status_code, 'raw_response': response_text}
-
+            return self._handle_http_error(http_err, method, log_url)
         except requests.exceptions.ConnectionError as conn_err:
-            err_msg = f"!! Connection Error for {method} {log_url}: {conn_err}"
-            print(f"[API ERROR] {err_msg}")
-            if hasattr(self, 'root') and self.root.winfo_exists():
-                messagebox.showerror("Connection Error",
-                                     "Cannot connect to Jira server.\nCheck server address and network connection.",
-                                     parent=self.root)
-            return {'success': False, 'error': err_msg, 'status_code': None}
+            return self._handle_connection_error(conn_err, method, log_url)
         except requests.exceptions.Timeout as timeout_err:
-            err_msg = f"!! Timeout Error for {method} {log_url}: {timeout_err}"
-            print(f"[API ERROR] {err_msg}")
-            if hasattr(self, 'root') and self.root.winfo_exists():
-                messagebox.showerror("Timeout", "Jira API request timed out.", parent=self.root)
-            return {'success': False, 'error': err_msg, 'status_code': None}
+            return self._handle_timeout_error(timeout_err, method, log_url)
         except requests.exceptions.RequestException as req_err:
-            err_msg = f"!! Request Exception for {method} {log_url}: {req_err}"
-            print(f"[API ERROR] {err_msg}")
-            traceback.print_exc()
-            if hasattr(self, 'root') and self.root.winfo_exists():
-                messagebox.showerror("Request Error", f"An unexpected request error occurred: {req_err}",
-                                     parent=self.root)
-            return {'success': False, 'error': err_msg, 'status_code': None}
+            return self._handle_request_exception(req_err, method, log_url)
+
+    def _handle_http_error(self, http_err, method, log_url):
+        """Handle HTTP errors from JIRA API"""
+        status_code = http_err.response.status_code if http_err.response is not None else 'N/A'
+        response_text = http_err.response.text if http_err.response is not None else '<no response body>'
+        error_message = f"!! HTTP Error {status_code} for {method} {log_url}: {http_err}"
+
+        jira_error_details = ""
+        try:
+            if http_err.response is not None:
+                error_json = http_err.response.json()
+                jira_error_messages = error_json.get('errorMessages', [])
+                jira_errors = error_json.get('errors', {})
+                if jira_error_messages: jira_error_details += f"\nJira Messages: {jira_error_messages}"
+                if jira_errors: jira_error_details += f"\nJira Details: {jira_errors}"
+                error_message += jira_error_details
+        except (json.JSONDecodeError, AttributeError):
+            pass
+
+        print(f"[API ERROR] {error_message}")
+        return {'success': False, 'error': error_message, 'status_code': status_code, 'raw_response': response_text}
+
+    def _is_root_valid(self):
+        """Check if the root window exists and is valid - optimization for repeated checks"""
+        if self._root_ref is not None:
+            root = self._root_ref()
+            return root is not None and root.winfo_exists()
+        return hasattr(self, 'root') and self.root is not None and self.root.winfo_exists()
+
+    def _handle_connection_error(self, conn_err, method, log_url):
+        """Handle connection errors from JIRA API"""
+        err_msg = f"!! Connection Error for {method} {log_url}: {conn_err}"
+        print(f"[API ERROR] {err_msg}")
+        if self._is_root_valid():
+            messagebox.showerror("Connection Error",
+                                 "Cannot connect to Jira server.\nCheck server address and network connection.",
+                                 parent=self.root)
+        return {'success': False, 'error': err_msg, 'status_code': None}
+
+    def _handle_timeout_error(self, timeout_err, method, log_url):
+        """Handle timeout errors from JIRA API"""
+        err_msg = f"!! Timeout Error for {method} {log_url}: {timeout_err}"
+        print(f"[API ERROR] {err_msg}")
+        if self._is_root_valid():
+            messagebox.showerror("Timeout", "Jira API request timed out.", parent=self.root)
+        return {'success': False, 'error': err_msg, 'status_code': None}
+
+    def _handle_request_exception(self, req_err, method, log_url):
+        """Handle general request exceptions from JIRA API"""
+        err_msg = f"!! Request Exception for {method} {log_url}: {req_err}"
+        print(f"[API ERROR] {err_msg}")
+        traceback.print_exc()
+        if self._is_root_valid():
+            messagebox.showerror("Request Error", f"An unexpected request error occurred: {req_err}",
+                                 parent=self.root)
+        return {'success': False, 'error': err_msg, 'status_code': None}
 
     def _fetch_my_account_id(self):
+        """Fetch the current user's account ID from JIRA - optimized version"""
         print("Fetching user info (accountId)...")
         result = self._make_jira_request("GET", "myself")
+
         if result and result['success'] and 'data' in result and 'accountId' in result['data']:
             self.my_account_id = result['data']['accountId']
             print(f">> My accountId: {self.my_account_id}")
@@ -837,29 +936,35 @@ class GUI:
             self.my_account_id = None
             print("!! ERROR: Failed to fetch user accountId.")
             error_details = result.get('error', 'No details') if result else 'No response'
-            if hasattr(self, 'root') and self.root.winfo_exists():
+
+            if self._is_root_valid():
                 messagebox.showwarning("User Data Error",
-                                       f"Could not fetch your Jira user ID.\n'Assign To Me' disabled.\nError: {error_details[:150]}...",
-                                       parent=self.root)
-        if hasattr(self, 'root') and self.root.winfo_exists():
+                                      f"Could not fetch your Jira user ID.\n'Assign To Me' disabled.\nError: {error_details[:150]}...",
+                                      parent=self.root)
+
+        if self._is_root_valid():
             self._update_action_button_states()
 
     def _format_seconds_to_jira_duration(self, seconds):
+        """Convert seconds to JIRA duration format (e.g., '2h 30m')"""
         seconds = int(seconds)
-        if seconds <= 0: return "0m"
+        if seconds <= 0: 
+            return "0m"
 
         total_minutes = (seconds + 59) // 60
 
-        if total_minutes <= 0: return "1m"
+        if total_minutes <= 0: 
+            return "1m"
 
         h, m = divmod(total_minutes, 60)
 
-        parts = []
-        if h > 0: parts.append(f"{h}h")
-        if m > 0: parts.append(f"{m}m")
-
-        formatted_duration = " ".join(parts)
-        return formatted_duration if formatted_duration else "1m"
+        if h > 0:
+            if m > 0:
+                return f"{h}h {m}m"
+            return f"{h}h"
+        if m > 0:
+            return f"{m}m"
+        return "1m"
 
     def load_projects_from_jira(self):
         print("Fetching projects from Jira...")
@@ -1177,7 +1282,7 @@ class GUI:
             elif result:
                 error_msg += f"\nServer response code {result.get('status_code', 'N/A')}"
             if result and result.get(
-                'raw_response'): error_msg += f"\nResponse: {result.get('raw_response', '')[:200]}..."
+                    'raw_response'): error_msg += f"\nResponse: {result.get('raw_response', '')[:200]}..."
             if hasattr(self, 'root') and self.root.winfo_exists():
                 messagebox.showerror("Transition Error", error_msg, parent=self.root)
             return False
@@ -1233,7 +1338,6 @@ class GUI:
         input_state = 'disabled' if self.timer_running else 'normal'
         combo_state = 'disabled' if self.timer_running else 'readonly'
         if hasattr(self, 'project_combobox'): self.project_combobox.configure(state=combo_state)
-
 
     def assign_to_me(self):
         print("--- Requesting assign task to me ---")
@@ -1386,27 +1490,32 @@ class GUI:
         self.start_time = 0
 
     def update_timer(self):
-        if self.timer_running and hasattr(self, 'root') and self.root.winfo_exists():
-            if self.start_time > 0:
-                current_elapsed = time.time() - self.start_time
-                h, rem = divmod(int(current_elapsed), 3600)
-                m, s = divmod(rem, 60)
-                time_string = f"TIME: {h:02d}:{m:02d}:{s:02d}"
+        """Update the timer display - optimized version"""
+        if not self.timer_running:
+            return
 
-                if hasattr(self, 'timer_label') and self.timer_label.winfo_exists():
-                    self.timer_label.configure(text=time_string)
-
-                if self.timer_running:
-                    self.root.after(1000, self.update_timer)
-            else:
-                print("Warning: Timer update called but start_time invalid.")
-                if hasattr(self, 'timer_label'): self.timer_label.configure(text="TIME: ERROR")
-                self.timer_running = False
-        elif not self.timer_running:
-            pass
-        else:
+        if not self._is_root_valid():
             print("Timer loop stopping: main window gone.")
             self.timer_running = False
+            return
+
+        if self.start_time <= 0:
+            print("Warning: Timer update called but start_time invalid.")
+            if hasattr(self, 'timer_label') and self.timer_label.winfo_exists():
+                self.timer_label.configure(text="TIME: ERROR")
+            self.timer_running = False
+            return
+
+        current_elapsed = time.time() - self.start_time
+        h, rem = divmod(int(current_elapsed), 3600)
+        m, s = divmod(rem, 60)
+        time_string = f"TIME: {h:02d}:{m:02d}:{s:02d}"
+
+        if hasattr(self, 'timer_label') and self.timer_label.winfo_exists():
+            self.timer_label.configure(text=time_string)
+
+        if self.timer_running:
+            self.root.after(1000, self.update_timer)
 
     def open_label_editor_window(self):
         if self.timer_running:
@@ -1449,21 +1558,18 @@ class GUI:
         except Exception as e:
             print(f"Could not center task list: {e}")
 
-        # Schedule the grab_set to happen after the window is visible
         def set_grab():
             if task_window.winfo_exists():
                 task_window.grab_set()
 
         task_window.after(100, set_grab)
 
-        # Rest of your existing show_task_list code...
         scroll_frame = ctk.CTkScrollableFrame(
             task_window, label_text=f"RECENT TASKS IN PROJECT: {self.selected_project_key}",
             label_font=FONT_MONO_BOLD, label_text_color=TERMINAL_GREEN,
             fg_color=WIDGET_BACKGROUND, corner_radius=0, border_width=1, border_color=BORDER_COLOR,
             scrollbar_button_color=TERMINAL_GREEN, scrollbar_button_hover_color=TERMINAL_GREEN_BRIGHT
         )
-        # ... rest of the method remains the same ...
         scroll_frame.pack(fill='both', padx=10, pady=(5, 0), expand=True)
 
         loading = ctk.CTkLabel(scroll_frame, text="fetching tasks...", font=FONT_MONO_NORMAL,
@@ -1640,6 +1746,57 @@ class GUI:
 
         if self.root and self.root.winfo_exists(): self.root.destroy()
         print(">> Application closed.")
+
+    def create_macos_title_bar(self):
+        title_bar = ctk.CTkFrame(self.root, height=32, fg_color="#2C2C2C", corner_radius=0)
+        title_bar.pack(fill='x')
+
+        btn_frame = ctk.CTkFrame(title_bar, fg_color="transparent")
+        btn_frame.pack(side='left', padx=10)
+
+        close_btn = ctk.CTkButton(btn_frame, text="", width=14, height=14,
+                                  fg_color="#FF5F56", hover_color="#FF5F56",
+                                  corner_radius=7, command=self.root.destroy)
+        close_btn.pack(side='left', padx=(0, 8))
+
+        minimize_btn = ctk.CTkButton(btn_frame, text="", width=14, height=14,
+                                     fg_color="#FFBD2E", hover_color="#FFBD2E",
+                                     corner_radius=7, command=self.root.iconify)
+        minimize_btn.pack(side='left', padx=(0, 8))
+
+        maximize_btn = ctk.CTkButton(btn_frame, text="", width=14, height=14,
+                                     fg_color="#27C93F", hover_color="#27C93F",
+                                     corner_radius=7, command=self.toggle_maximize)
+        maximize_btn.pack(side='left')
+
+        title_label = ctk.CTkLabel(title_bar, text="JIRA FOCUS",
+                                   font=FONT_MONO_NORMAL, text_color=TEXT_COLOR_NORMAL)
+        title_label.pack(side='left', padx=20)
+
+        title_bar.bind("<ButtonPress-1>", self.start_move)
+        title_bar.bind("<ButtonRelease-1>", self.stop_move)
+        title_bar.bind("<B1-Motion>", self.on_motion)
+
+    def start_move(self, event):
+        self._x = event.x
+        self._y = event.y
+
+    def stop_move(self, event):
+        self._x = None
+        self._y = None
+
+    def on_motion(self, event):
+        deltax = event.x - self._x
+        deltay = event.y - self._y
+        x = self.root.winfo_x() + deltax
+        y = self.root.winfo_y() + deltay
+        self.root.geometry(f"+{x}+{y}")
+
+    def toggle_maximize(self):
+        if self.root.state() == 'zoomed':
+            self.root.state('normal')
+        else:
+            self.root.state('zoomed')
 
 
 if __name__ == "__main__":
