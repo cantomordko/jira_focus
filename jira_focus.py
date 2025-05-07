@@ -7,6 +7,7 @@ import traceback
 import weakref
 from collections import Counter
 from functools import lru_cache
+from tkinter import messagebox
 
 import customtkinter as ctk
 
