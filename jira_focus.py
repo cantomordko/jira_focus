@@ -10,19 +10,50 @@ from functools import lru_cache
 
 import customtkinter as ctk
 
-TERMINAL_GREEN = "#0A84FF"
-TERMINAL_GREEN_BRIGHT = "#5E9DFF"
-BACKGROUND_COLOR = "#1E1E1E"
-WIDGET_BACKGROUND = "#2C2C2C"
-BORDER_COLOR = "#404040"
-HOVER_COLOR_BTN = "#3A3A3A"
-TEXT_COLOR_NORMAL = "#FFFFFF"
-TEXT_COLOR_DIM = "#A0A0A0"
-ERROR_RED = "#FF453A"
-STATUS_BLUE = "#0A84FF"
-STATUS_ORANGE = "#FF9F0A"
-STATUS_GREEN = "#30D158"
-LABEL_NEW_FG = "#64D2FF"
+# Dark theme
+DARK_TERMINAL_GREEN = "#0A84FF"
+DARK_TERMINAL_GREEN_BRIGHT = "#5E9DFF"
+DARK_BACKGROUND_COLOR = "#1E1E1E"
+DARK_WIDGET_BACKGROUND = "#2C2C2C"
+DARK_BORDER_COLOR = "#404040"
+DARK_HOVER_COLOR_BTN = "#3A3A3A"
+DARK_TEXT_COLOR_NORMAL = "#FFFFFF"
+DARK_TEXT_COLOR_DIM = "#A0A0A0"
+DARK_ERROR_RED = "#FF453A"
+DARK_STATUS_BLUE = "#0A84FF"
+DARK_STATUS_ORANGE = "#FF9F0A"
+DARK_STATUS_GREEN = "#30D158"
+DARK_LABEL_NEW_FG = "#64D2FF"
+
+# Light theme
+LIGHT_TERMINAL_GREEN = "#0A84FF"
+LIGHT_TERMINAL_GREEN_BRIGHT = "#5E9DFF"
+LIGHT_BACKGROUND_COLOR = "#F5F5F7"
+LIGHT_WIDGET_BACKGROUND = "#FFFFFF"
+LIGHT_BORDER_COLOR = "#D1D1D6"
+LIGHT_HOVER_COLOR_BTN = "#E9E9EB"
+LIGHT_TEXT_COLOR_NORMAL = "#000000"
+LIGHT_TEXT_COLOR_DIM = "#8E8E93"
+LIGHT_ERROR_RED = "#FF3B30"
+LIGHT_STATUS_BLUE = "#007AFF"
+LIGHT_STATUS_ORANGE = "#FF9500"
+LIGHT_STATUS_GREEN = "#34C759"
+LIGHT_LABEL_NEW_FG = "#5AC8FA"
+
+
+TERMINAL_GREEN = DARK_TERMINAL_GREEN
+TERMINAL_GREEN_BRIGHT = DARK_TERMINAL_GREEN_BRIGHT
+BACKGROUND_COLOR = DARK_BACKGROUND_COLOR
+WIDGET_BACKGROUND = DARK_WIDGET_BACKGROUND
+BORDER_COLOR = DARK_BORDER_COLOR
+HOVER_COLOR_BTN = DARK_HOVER_COLOR_BTN
+TEXT_COLOR_NORMAL = DARK_TEXT_COLOR_NORMAL
+TEXT_COLOR_DIM = DARK_TEXT_COLOR_DIM
+ERROR_RED = DARK_ERROR_RED
+STATUS_BLUE = DARK_STATUS_BLUE
+STATUS_ORANGE = DARK_STATUS_ORANGE
+STATUS_GREEN = DARK_STATUS_GREEN
+LABEL_NEW_FG = DARK_LABEL_NEW_FG
 
 FONT_FAMILY_MONO = "SF Mono"
 FONT_MONO_NORMAL = (FONT_FAMILY_MONO, 13)
@@ -605,6 +636,7 @@ class GUI:
         self.elapsed_time = 0
         self.timer_running = False
         self.selected_labels = set()
+        self.current_theme = "dark"
 
         config_path = os.path.join(os.path.dirname(__file__), 'config.json')
         config = None
@@ -630,6 +662,9 @@ class GUI:
             self.jira_server = config['jira_server'].rstrip('/')
             self.jira_username = config['jira_username']
             self.jira_api_token = config['jira_api_token']
+
+            if 'theme' in config:
+                self.current_theme = config['theme']
             if not all([self.jira_server, self.jira_username, self.jira_api_token]):
                 raise ValueError(
                     "One or more required config values (jira_server, jira_username, jira_api_token) are empty.")
@@ -651,7 +686,9 @@ class GUI:
         self.auth = (self.jira_username, self.jira_api_token)
         self.headers = {"Content-Type": "application/json", "Accept": "application/json"}
 
-        ctk.set_appearance_mode("dark")
+
+        self._apply_theme(self.current_theme)
+
         self.root = ctk.CTk()
         self._root_ref = weakref.ref(self.root)
         self.root.configure(fg_color=BACKGROUND_COLOR)
@@ -948,12 +985,12 @@ class GUI:
     def _format_seconds_to_jira_duration(self, seconds):
         """Convert seconds to JIRA duration format (e.g., '2h 30m')"""
         seconds = int(seconds)
-        if seconds <= 0: 
+        if seconds <= 0:
             return "0m"
 
         total_minutes = (seconds + 59) // 60
 
-        if total_minutes <= 0: 
+        if total_minutes <= 0:
             return "1m"
 
         h, m = divmod(total_minutes, 60)
@@ -1578,10 +1615,12 @@ class GUI:
         if hasattr(self, 'root'): self.root.update_idletasks()
 
         print(f"Fetching tasks for project {self.selected_project_key}...")
+
+        cache_buster = int(time.time())
         jql = f'project = "{self.selected_project_key}" AND status NOT IN ("Done", "Resolved", "Canceled", "Closed") ORDER BY updated DESC'
         fields = "summary,status,issuetype,worklog,labels,assignee"
         max_res = 50
-        endpoint = f"search?jql={requests.utils.quote(jql)}&fields={fields}&maxResults={max_res}"
+        endpoint = f"search?jql={requests.utils.quote(jql)}&fields={fields}&maxResults={max_res}&_={cache_buster}"
         result = self._make_jira_request("GET", endpoint)
 
         if loading.winfo_exists(): loading.destroy()
@@ -1748,8 +1787,10 @@ class GUI:
         print(">> Application closed.")
 
     def create_macos_title_bar(self):
-        title_bar = ctk.CTkFrame(self.root, height=32, fg_color="#2C2C2C", corner_radius=0)
+        title_bar_color = DARK_WIDGET_BACKGROUND if self.current_theme.lower() == "dark" else LIGHT_WIDGET_BACKGROUND
+        title_bar = ctk.CTkFrame(self.root, height=32, fg_color=title_bar_color, corner_radius=0)
         title_bar.pack(fill='x')
+        self.title_bar = title_bar
 
         btn_frame = ctk.CTkFrame(title_bar, fg_color="transparent")
         btn_frame.pack(side='left', padx=10)
@@ -1772,6 +1813,16 @@ class GUI:
         title_label = ctk.CTkLabel(title_bar, text="JIRA FOCUS",
                                    font=FONT_MONO_NORMAL, text_color=TEXT_COLOR_NORMAL)
         title_label.pack(side='left', padx=20)
+
+
+        theme_btn_frame = ctk.CTkFrame(title_bar, fg_color="transparent")
+        theme_btn_frame.pack(side='right', padx=10)
+
+        theme_icon = "🌙" if self.current_theme.lower() == "dark" else "☀️"
+        self.theme_btn = ctk.CTkButton(theme_btn_frame, text=theme_icon, width=30, height=20,
+                                      fg_color="transparent", hover_color=HOVER_COLOR_BTN,
+                                      corner_radius=5, command=self.toggle_theme)
+        self.theme_btn.pack(side='right')
 
         title_bar.bind("<ButtonPress-1>", self.start_move)
         title_bar.bind("<ButtonRelease-1>", self.stop_move)
@@ -1797,6 +1848,153 @@ class GUI:
             self.root.state('normal')
         else:
             self.root.state('zoomed')
+
+    def _apply_theme(self, theme):
+        """Apply the specified theme to the application."""
+        global TERMINAL_GREEN, TERMINAL_GREEN_BRIGHT, BACKGROUND_COLOR, WIDGET_BACKGROUND
+        global BORDER_COLOR, HOVER_COLOR_BTN, TEXT_COLOR_NORMAL, TEXT_COLOR_DIM
+        global ERROR_RED, STATUS_BLUE, STATUS_ORANGE, STATUS_GREEN, LABEL_NEW_FG
+
+        self.current_theme = theme
+
+        if theme.lower() == "light":
+
+            TERMINAL_GREEN = LIGHT_TERMINAL_GREEN
+            TERMINAL_GREEN_BRIGHT = LIGHT_TERMINAL_GREEN_BRIGHT
+            BACKGROUND_COLOR = LIGHT_BACKGROUND_COLOR
+            WIDGET_BACKGROUND = LIGHT_WIDGET_BACKGROUND
+            BORDER_COLOR = LIGHT_BORDER_COLOR
+            HOVER_COLOR_BTN = LIGHT_HOVER_COLOR_BTN
+            TEXT_COLOR_NORMAL = LIGHT_TEXT_COLOR_NORMAL
+            TEXT_COLOR_DIM = LIGHT_TEXT_COLOR_DIM
+            ERROR_RED = LIGHT_ERROR_RED
+            STATUS_BLUE = LIGHT_STATUS_BLUE
+            STATUS_ORANGE = LIGHT_STATUS_ORANGE
+            STATUS_GREEN = LIGHT_STATUS_GREEN
+            LABEL_NEW_FG = LIGHT_LABEL_NEW_FG
+
+
+            ctk.set_appearance_mode("light")
+        else:
+
+            TERMINAL_GREEN = DARK_TERMINAL_GREEN
+            TERMINAL_GREEN_BRIGHT = DARK_TERMINAL_GREEN_BRIGHT
+            BACKGROUND_COLOR = DARK_BACKGROUND_COLOR
+            WIDGET_BACKGROUND = DARK_WIDGET_BACKGROUND
+            BORDER_COLOR = DARK_BORDER_COLOR
+            HOVER_COLOR_BTN = DARK_HOVER_COLOR_BTN
+            TEXT_COLOR_NORMAL = DARK_TEXT_COLOR_NORMAL
+            TEXT_COLOR_DIM = DARK_TEXT_COLOR_DIM
+            ERROR_RED = DARK_ERROR_RED
+            STATUS_BLUE = DARK_STATUS_BLUE
+            STATUS_ORANGE = DARK_STATUS_ORANGE
+            STATUS_GREEN = DARK_STATUS_GREEN
+            LABEL_NEW_FG = DARK_LABEL_NEW_FG
+
+
+            ctk.set_appearance_mode("dark")
+
+
+        if hasattr(self, 'root') and self.root is not None:
+            self.root.configure(fg_color=BACKGROUND_COLOR)
+
+    def toggle_theme(self):
+        """Toggle between light and dark themes."""
+        new_theme = "light" if self.current_theme.lower() == "dark" else "dark"
+        self._apply_theme(new_theme)
+        self._save_theme_to_config()
+
+
+        if hasattr(self, 'content_frame'):
+            self._update_ui_for_theme()
+
+
+        if hasattr(self, 'theme_btn'):
+            theme_icon = "🌙" if self.current_theme.lower() == "dark" else "☀️"
+            self.theme_btn.configure(text=theme_icon)
+
+    def _update_ui_for_theme(self):
+        """Update UI elements with the current theme colors."""
+
+        self.root.configure(fg_color=BACKGROUND_COLOR)
+
+
+        if hasattr(self, 'title_bar'):
+            title_bar_color = DARK_WIDGET_BACKGROUND if self.current_theme.lower() == "dark" else LIGHT_WIDGET_BACKGROUND
+            self.title_bar.configure(fg_color=title_bar_color)
+
+
+        for widget in self.root.winfo_children():
+            if isinstance(widget, ctk.CTkFrame):
+                if widget._fg_color == "transparent":
+                    pass
+                else:
+                    widget.configure(fg_color=WIDGET_BACKGROUND)
+
+
+            self._update_widget_colors(widget)
+
+    def _update_widget_colors(self, parent_widget):
+        """Recursively update widget colors based on their types."""
+        for widget in parent_widget.winfo_children():
+            if isinstance(widget, ctk.CTkFrame):
+                if widget._fg_color == "transparent":
+                    pass
+                else:
+                    widget.configure(fg_color=WIDGET_BACKGROUND)
+            elif isinstance(widget, ctk.CTkLabel):
+                widget.configure(text_color=TEXT_COLOR_NORMAL)
+            elif isinstance(widget, ctk.CTkButton):
+
+                if widget._fg_color == DARK_STATUS_BLUE or widget._fg_color == LIGHT_STATUS_BLUE:
+                    widget.configure(fg_color=STATUS_BLUE, text_color=BACKGROUND_COLOR)
+                elif widget._fg_color == DARK_STATUS_GREEN or widget._fg_color == LIGHT_STATUS_GREEN:
+                    widget.configure(fg_color=STATUS_GREEN, text_color=BACKGROUND_COLOR)
+                elif widget._fg_color == DARK_STATUS_ORANGE or widget._fg_color == LIGHT_STATUS_ORANGE:
+                    widget.configure(fg_color=STATUS_ORANGE, text_color=BACKGROUND_COLOR)
+                elif widget._fg_color == DARK_ERROR_RED or widget._fg_color == LIGHT_ERROR_RED:
+                    widget.configure(fg_color=ERROR_RED, text_color=BACKGROUND_COLOR)
+
+                elif widget._fg_color == "#FF5F56":
+                    widget.configure(fg_color="#FF5F56", hover_color="#FF5F56")
+                elif widget._fg_color == "#FFBD2E":
+                    widget.configure(fg_color="#FFBD2E", hover_color="#FFBD2E")
+                elif widget._fg_color == "#27C93F":
+                    widget.configure(fg_color="#27C93F", hover_color="#27C93F")
+                else:
+                    widget.configure(fg_color=WIDGET_BACKGROUND, text_color=TEXT_COLOR_NORMAL,
+                                    hover_color=HOVER_COLOR_BTN)
+            elif isinstance(widget, ctk.CTkEntry):
+                widget.configure(fg_color=WIDGET_BACKGROUND, text_color=TEXT_COLOR_NORMAL,
+                                border_color=BORDER_COLOR)
+            elif isinstance(widget, ctk.CTkComboBox):
+                widget.configure(fg_color=WIDGET_BACKGROUND, text_color=TEXT_COLOR_NORMAL,
+                                border_color=BORDER_COLOR, dropdown_fg_color=WIDGET_BACKGROUND,
+                                dropdown_text_color=TEXT_COLOR_NORMAL, dropdown_hover_color=HOVER_COLOR_BTN)
+
+
+            if widget.winfo_children():
+                self._update_widget_colors(widget)
+
+    def _save_theme_to_config(self):
+        """Save the current theme preference to the config file."""
+        config_path = os.path.join(os.path.dirname(__file__), 'config.json')
+        try:
+
+            with open(config_path, 'r', encoding='utf-8') as f:
+                config = json.load(f)
+
+
+            config['theme'] = self.current_theme
+
+
+            with open(config_path, 'w', encoding='utf-8') as f:
+                json.dump(config, f, indent=2)
+
+            print(f"Theme preference saved: {self.current_theme}")
+        except Exception as e:
+            print(f"Error saving theme preference: {e}")
+            traceback.print_exc()
 
 
 if __name__ == "__main__":
